@@ -9,6 +9,7 @@ import Movies from "./pages/Movies";
 import Favorite from "./pages/Favorite";
 import MyBookings from "./pages/MyBookings";
 import MovieDetails from "./pages/MovieDetails";
+import SeatLayout from "./pages/SeatLayout";
 
 import Layout from "./pages/admin/Layout";
 import Dashboard from "./pages/admin/Dashboard";
@@ -28,6 +29,7 @@ const App = () => {
         <Route path="/" element={<Home />} />
         <Route path="/movies" element={<Movies />} />
         <Route path="/movies/:id" element={<MovieDetails />} />
+        <Route path="/movies/:id/:date" element={<SeatLayout />} />
         <Route path="/favorite" element={<Favorite />} />
         <Route path="/my-bookings" element={<MyBookings />} />
 
