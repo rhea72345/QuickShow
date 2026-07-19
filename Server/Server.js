@@ -14,7 +14,7 @@ const app = express();
 const port = process.env.PORT || 3000;
 
 // Connect Database
-await connectDB();
+// await connectDB();
 
 // Middleware
 app.use(express.json());
