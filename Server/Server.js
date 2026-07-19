@@ -22,10 +22,10 @@ app.use(cors());
 app.use(clerkMiddleware());
 
 // Routes
-// app.get("/", (req, res) => {
-//   res.send("Server is Live!");
-// });
-//change
+app.get("/", (req, res) => {
+   res.send("Server is Live!");
+ });
+
 app.get("/test", (req, res) => {
   res.json({ success: true });
 });
