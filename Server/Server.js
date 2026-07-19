@@ -14,7 +14,7 @@ const app = express();
 const port = process.env.PORT || 3000;
 
 // Connect Database
-// await connectDB();
+await connectDB();
 
 // Middleware
 app.use(express.json());
@@ -22,8 +22,12 @@ app.use(cors());
 app.use(clerkMiddleware());
 
 // Routes
-app.get("/", (req, res) => {
-  res.send("Server is Live!");
+// app.get("/", (req, res) => {
+//   res.send("Server is Live!");
+// });
+//change
+app.get("/test", (req, res) => {
+  res.json({ success: true });
 });
 
 app.use(
