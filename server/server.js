@@ -6,6 +6,7 @@ import dns from "dns";
 import { clerkMiddleware } from "@clerk/express";
 import { serve } from "inngest/express";
 import { inngest, functions } from "./inngest/index.js";
+import showRouter from "./routes/showRoutes.js";
 
 // Change DNS
 dns.setServers(["1.1.1.1", "8.8.8.8"]);
@@ -23,8 +24,8 @@ app.use(clerkMiddleware());
 
 // Routes
 app.get("/", (req, res) => {
-   res.send("Server is Live!");
- });
+  res.send("Server is Live!");
+});
 
 app.get("/test", (req, res) => {
   res.json({ success: true });
@@ -38,6 +39,9 @@ app.use(
   })
 );
 
+// ✅ Correct
+app.use("/api/show", showRouter);
+
 // Start server only in local development
 if (process.env.NODE_ENV !== "production") {
   app.listen(port, () => {
@@ -45,5 +49,4 @@ if (process.env.NODE_ENV !== "production") {
   });
 }
 
-// Export app for Vercel
 export default app;
