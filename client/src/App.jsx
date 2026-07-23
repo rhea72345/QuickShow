@@ -22,8 +22,7 @@ import { SignIn } from "@clerk/clerk-react";
 const App = () => {
   const isAdminRoute = useLocation().pathname.startsWith("/admin");
 
-  const { user } = useAppContext
-
+  const { user } = useAppContext();
   return (
     <>
       {!isAdminRoute && <Navbar />}
