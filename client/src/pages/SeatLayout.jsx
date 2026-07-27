@@ -1,357 +1,163 @@
-import React, { useState } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import React, { useEffect, useState } from "react";
+import { useNavigate, useParams } from "react-router-dom";
+import { assets, dummyDateTimeData, dummyShowsData } from "../assets/assets";
+import Loading from "../components/Loading";
+import { ArrowRightIcon, ClockIcon } from "lucide-react";
+import isoTimeFormat from "../lib/ISOtimeFormat";
+import BlurCircle from "../components/BlurCircle";
+import { toast } from "react-hot-toast";
+import { useAppContext } from '../context/AppContext'
 
 const SeatLayout = () => {
+
+  const groupRows = [["A", "B"], ["C", "D"], ["E", "F"], ["G", "H"], ["I", "J"]]
+
   const { id, date } = useParams();
+  const [selectedSeats, setSelectedSeats] = useState([]);
+  const [selectedTime, setSelectedTime] = useState(null);
+  const [show, setShow] = useState(null);
+  const [occupiedSeats, setOccupiedSeats] = useState([])
+
   const navigate = useNavigate();
 
-  const rows = ["A", "B", "C", "D", "E", "F", "G", "H"];
-  const cols = 9;
+  const {axios, getToken, user} = useAppContext()
 
-  const seatPrice = 250;
-
-  const timings = [
-    "09:30 AM",
-    "12:30 PM",
-    "03:30 PM",
-    "06:30 PM",
-    "09:30 PM",
-  ];
-
-  // Dummy Booked Seats
-  const bookedSeats = [
-    "A2",
-    "A5",
-    "B4",
-    "B8",
-    "C1",
-    "C7",
-    "D5",
-    "E3",
-    "F6",
-    "G2",
-    "H9",
-  ];
-
-  const [selectedSeats, setSelectedSeats] = useState([]);
-  const [selectedTime, setSelectedTime] = useState("");
-
-  const toggleSeat = (seat) => {
-    if (bookedSeats.includes(seat)) return;
-
-    if (selectedSeats.includes(seat)) {
-      setSelectedSeats(selectedSeats.filter((s) => s !== seat));
-      return;
+  const getShow = async () => {
+    try {
+      const { data } = await axios.get(`/api/show/${id}`)
+      if (data.success){
+        setShow(data)
+      }
+    } catch (error) {
+      console.log(error)
     }
+  }
 
-    if (selectedSeats.length >= 5) {
-      alert("You can select only 5 seats.");
-      return;
+  const handleSeatClick = (seatId) => {
+    if (!selectedTime) {
+      return toast("Please select time first")
     }
-
-    setSelectedSeats([...selectedSeats, seat]);
-  };
-
-  const totalAmount = selectedSeats.length * seatPrice;
-
-  const handleCheckout = () => {
-    const booking = {
-      _id: Date.now().toString(),
-      show: {
-        _id: id,
-        movie: {
-          title: `Movie ${id}`,
-          poster_path:
-            "https://image.tmdb.org/t/p/original/dDlfjR7gllmr8HTeN6rfrYhTdwX.jpg",
-          runtime: 120,
-        },
-        showDateTime: `${date} ${selectedTime}`,
-        showPrice: seatPrice,
-      },
-      amount: totalAmount,
-      bookedSeats: selectedSeats,
-      isPaid: false,
-    };
-
-    localStorage.setItem("newBooking", JSON.stringify(booking));
-
-    navigate("/my-bookings");
-  };
-
-  return (
-    <div className="min-h-screen bg-[#09090B] text-white px-6 py-8">
-      <div className="max-w-7xl mx-auto">
-
-        <h1 className="text-4xl font-bold text-center mb-10">
-          Select Your Seat
-        </h1>
-
-        <div className="grid lg:grid-cols-3 gap-8">
-
-          {/* LEFT : Available Timings */}
-
-          <div className="bg-[#16161d] border border-pink-500/20 rounded-2xl p-6 h-fit">
-
-            <h2 className="text-2xl font-semibold mb-6">
-              Available Timings
-            </h2>
-
-            <div className="space-y-4">
-
-              {timings.map((time) => (
-
-                <button
-                  key={time}
-                  onClick={() => setSelectedTime(time)}
-                  className={`w-full py-3 rounded-lg font-medium transition ${
-                    selectedTime === time
-                      ? "bg-pink-600 text-white"
-                      : "bg-[#262631] hover:bg-pink-500"
-                  }`}
-                >
-                  {time}
-                </button>
-
-              ))}
-
-            </div>
-                        <div className="mt-8">
-
-              <h3 className="font-semibold mb-4">
-                Seat Status
-              </h3>
-
-              <div className="space-y-3 text-sm">
-
-                <div className="flex items-center gap-3">
-                  <div className="w-5 h-5 border border-white rounded"></div>
-                  <span>Available</span>
-                </div>
-
-                <div className="flex items-center gap-3">
-                  <div className="w-5 h-5 rounded bg-pink-600"></div>
-                  <span>Selected</span>
-                </div>
-
-                <div className="flex items-center gap-3">
-                  <div className="w-5 h-5 rounded bg-gray-700"></div>
-                  <span>Booked</span>
-                </div>
-
-              </div>
-
-            </div>
-
-          </div>
-
-          {/* RIGHT : Seat Layout */}
-
-          <div className="lg:col-span-2 bg-[#16161d] border border-pink-500/20 rounded-2xl p-8">
-
-            <div className="w-full h-3 rounded-full bg-pink-500"></div>
-
-            <p className="text-center tracking-[8px] text-gray-400 mt-3 mb-10">
-              SCREEN
-            </p>
-
-            <div className="flex flex-col items-center">
-
-              {rows.map((row) => (
-                <div
-                  key={row}
-                  className="flex gap-2 mb-2"
-                >
-                  {Array.from({ length: cols }, (_, index) => {
-
-                    const seat = `${row}${index + 1}`;
-
-                    const booked = bookedSeats.includes(seat);
-
-                    const selected = selectedSeats.includes(seat);
-
-                    return (
-                      <button
-                        key={seat}
-                        disabled={booked}
-                        onClick={() => toggleSeat(seat)}
-                        className={`
-                          w-11
-                          h-11
-                          rounded-md
-                          text-sm
-                          font-semibold
-                          border
-                          transition-all
-                          duration-300
-                          ${
-                            booked
-                              ? "bg-gray-700 border-gray-700 cursor-not-allowed"
-                              : selected
-                              ? "bg-pink-600 border-pink-600 text-white"
-                              : "border-pink-500 hover:bg-pink-500 hover:text-white"
-                          }
-                        `}
-                      >
-                        {seat}
-                      </button>
-                    );
-
-                  })}
-                </div>
-              ))}
-
-            </div>
-
-            {/* Seat Status */}
-
-            <div className="flex justify-center gap-8 mt-10 text-sm">
-
-              <div className="flex items-center gap-2">
-                <div className="w-4 h-4 border border-white rounded"></div>
-                Available
-              </div>
-
-              <div className="flex items-center gap-2">
-                <div className="w-4 h-4 rounded bg-pink-600"></div>
-                Selected
-              </div>
-
-              <div className="flex items-center gap-2">
-                <div className="w-4 h-4 rounded bg-gray-700"></div>
-                Booked
-              </div>
-
-            </div>
-
-          </div>
-
-        </div>
-
-        {/* Booking Summary */}
-
-        <div className="mt-10 bg-[#16161d] border border-pink-500/20 rounded-2xl p-8">
-
-          <h2 className="text-2xl font-bold mb-8">
-            Booking Summary
-          </h2>
-
-          <div className="grid md:grid-cols-3 gap-6">
-
-            <div className="bg-[#22222d] rounded-xl p-5">
-              <p className="text-gray-400 text-sm">Movie ID</p>
-              <p className="text-lg font-semibold mt-2">{id}</p>
-            </div>
-
-            <div className="bg-[#22222d] rounded-xl p-5">
-              <p className="text-gray-400 text-sm">Show Date</p>
-              <p className="text-lg font-semibold mt-2">{date}</p>
-            </div>
-
-            <div className="bg-[#22222d] rounded-xl p-5">
-              <p className="text-gray-400 text-sm">Selected Time</p>
-              <p className="text-lg font-semibold mt-2">
-                {selectedTime || "Not Selected"}
-              </p>
-            </div>
-
-            <div className="bg-[#22222d] rounded-xl p-5">
-              <p className="text-gray-400 text-sm">Seat Price</p>
-              <p className="text-lg font-semibold mt-2">
-                ₹{seatPrice}
-              </p>
-            </div>
-
-            <div className="bg-[#22222d] rounded-xl p-5">
-              <p className="text-gray-400 text-sm">Total Seats</p>
-              <p className="text-lg font-semibold mt-2">
-                {selectedSeats.length}
-              </p>
-            </div>
-
-            <div className="bg-[#22222d] rounded-xl p-5">
-              <p className="text-gray-400 text-sm">Total Amount</p>
-              <p className="text-2xl font-bold text-pink-500 mt-2">
-                ₹{totalAmount}
-              </p>
-            </div>
-
-          </div>
-                    {/* Selected Seats */}
-
-          <div className="mt-8">
-
-            <h3 className="text-xl font-semibold mb-4">
-              Selected Seats
-            </h3>
-
-            {selectedSeats.length > 0 ? (
-
-              <div className="flex flex-wrap gap-3">
-
-                {selectedSeats.map((seat) => (
-
-                  <span
-                    key={seat}
-                    className="px-4 py-2 rounded-lg bg-pink-600 text-white font-semibold"
-                  >
-                    {seat}
-                  </span>
-
-                ))}
-
-              </div>
-
-            ) : (
-
-              <p className="text-gray-400">
-                No seats selected.
-              </p>
-
-            )}
-
-          </div>
-
-          {/* Booking Rules */}
-
-          <div className="mt-8 bg-[#22222d] rounded-xl p-5">
-
-            <h3 className="text-lg font-semibold mb-4">
-              Booking Rules
-            </h3>
-
-            <ul className="space-y-3 text-gray-400 list-disc pl-5">
-              <li>You can select only 5 seats.</li>
-              <li>Please select a show timing before checkout.</li>
-              <li>Booked seats cannot be selected.</li>
-              <li>Tickets once booked are non-refundable.</li>
-            </ul>
-
-          </div>
-
-        </div>
-
-        {/* Checkout Button */}
-
-        <div className="flex justify-center mt-10">
-
-          <button
-            type="button"
-            disabled={selectedSeats.length === 0 || !selectedTime}
-            onClick={handleCheckout}
-            className={`px-14 py-4 rounded-xl text-lg font-semibold transition-all duration-300 ${
-              selectedSeats.length > 0 && selectedTime
-                ? "bg-pink-600 hover:bg-pink-700 cursor-pointer text-white"
-                : "bg-gray-700 cursor-not-allowed text-gray-400"
-            }`}
-          >
-            Proceed To Checkout
-          </button>
-
-        </div>
-
+    if (!selectedSeats.includes(seatId) && selectedSeats.length > 4) {
+      return toast("You can only select 5 seats")
+    }
+    if (occupiedSeats.includes(seatId)){
+      return toast('This seat is already booked')
+    }
+    setSelectedSeats(prev => prev.includes(seatId) ? prev.filter(seat => seat !== seatId) : [...prev, seatId])
+  }
+
+  const renderSeats = (row, count = 9) => (
+    <div key={row} className="flex gap-2 mt-2">
+      <div className="flex flex-wrap items-center justify-center gap-2">
+        {Array.from({ length: count }, (_, i) => {
+          const seatId = `${row}${i + 1}`;
+          return (
+            <button
+              key={seatId}
+              onClick={() => handleSeatClick(seatId)}
+              className={`h-8 w-8 rounded border border-primary/60 cursor-pointer 
+                ${selectedSeats.includes(seatId) && "bg-primary text-white"}
+                ${occupiedSeats.includes(seatId) && "opacity-50"}`}
+            >
+              {seatId}
+            </button>
+          );
+        })}
       </div>
     </div>
   );
+
+  const getOccupiedSeats = async ()=>{
+    try {
+      const { data } = await axios.get(`/api/booking/seats/${selectedTime.showId}`)
+      if (data.success) {
+        setOccupiedSeats(data.occupiedSeats)
+      }else{
+        toast.error(data.message)
+      }
+    } catch (error) {
+      console.log(error)
+    }
+  }
+
+  const bookTickets = async () => {
+  try {
+    if (!user) return toast.error('Please login to proceed');
+
+    if (!selectedTime || !selectedSeats.length) return toast.error('Please select a time and seats');
+
+    const { data } = await axios.post('/api/booking/create',
+      {showId: selectedTime.showId,selectedSeats,},{headers: {Authorization: `Bearer ${await getToken()}`,},}
+    );
+
+    if (data.success) {
+      toast.success(data.message);
+      navigate('/my-bookings');
+    }else {
+      toast.error(data.message)
+    }
+  } catch (error) {
+    toast.error(error.message);
+  }
 };
+
+  useEffect(() => {
+    getShow()
+  }, [])
+
+  useEffect(() => {
+    if(selectedTime){
+      getOccupiedSeats()
+    }
+  }, [selectedTime])
+
+  return show ? (
+    <div className="flex flex-col md:flex-row px-6 md:px-16 lg:px-40 py-30 md:pt-50">
+      {/* Available Timings */}
+      <div className="w-60 bg-primary/10 border border-primary/20 rounded-lg py-10 h-max md:sticky md:top-30">
+        <p className="text-lg font-semibold px-6">Available Timings</p>
+        <div className="mt-5 space-y-1">
+          {show.dateTime[date].map((item) => (
+            <div key={item.time} onClick={() => setSelectedTime(item)} className={`flex items-center gap-2 px-6 py-2 w-max rounded-r-md cursor-pointer transition ${selectedTime?.time === item.time ? "bg-primary text-white" : "hover:bg-primary/20"}`}>
+              <ClockIcon className="w-4 h-4" />
+              <p className='text-sm'>{isoTimeFormat(item.time)}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Seats Layout*/}
+      <div className="relative flex-1 flex flex-col items-center max-md:mt-16">
+        <BlurCircle top="-100px" left="-100px" />
+        <BlurCircle bottom="0" right="0" />
+        <h1 className="text-2x1 font-semibold mb-4">Select your seat</h1>
+        <img src={assets.screenImage} alt="screen" />
+        <p className="text-gray-400 text-sm mb-6">SCREEN SIDE</p>
+
+        <div className="flex flex-col items-center mt-10 text-xs text-gray-300">
+          <div className="grid grid-cols-2 md:grid-cols-1 gap-8 md:gap-2 mb-6">
+            {groupRows[0].map(row => renderSeats(row))}
+          </div>
+
+          <div className="grid grid-cols-2 gap-11">
+            {groupRows.slice(1).map((group, idx) => (
+              <div key={idx}>
+                {group.map(row => renderSeats(row))}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <button onClick={bookTickets} className="flex items-center gap-1 mt-20 px-10 py-3 text-sm bg-primary-dull transition rounded-full font-medium cursor-pointer active:scale-95">
+            Proceed to Checkout
+            <ArrowRightIcon strokeWidth={3} className="w-4 h-4"/>
+        </button>
+
+      </div>
+    </div>
+  ) : (
+    <Loading />
+  )
+}
 
 export default SeatLayout;

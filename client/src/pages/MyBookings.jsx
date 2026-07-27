@@ -3,33 +3,34 @@ import BlurCircle from "../components/BlurCircle";
 import Loading from "../components/Loading";
 import { dummyBookingData } from "../assets/assets";
 import dateFormat from "../lib/dateFormat";
+import { useAppContext } from "../context/AppContext";
 
 const MyBookings = () => {
   const currency = import.meta.env.VITE_CURRENCY || "₹";
 
+  const {axios, getToken, user, image_base_url} = useAppContext()
+  
+
   const [bookings, setBookings] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  const getMyBookings = () => {
+  const getMyBookings = async() => {
     try {
-      const savedBooking = JSON.parse(localStorage.getItem("newBooking"));
-
-      if (savedBooking) {
-        setBookings([savedBooking, ...dummyBookingData]);
-      } else {
-        setBookings(dummyBookingData);
+      const { data } = await axios.get('/api/user/bookings', {headers: { Authorization: `Bearer ${await getToken()}`}})
+      if(data.success){
+        setBookings(data.bookings)
       }
     } catch (error) {
-      console.log(error);
-      setBookings(dummyBookingData);
-    } finally {
-      setIsLoading(false);
+      console.log(error)
     }
+    setIsLoading(false)
   };
 
   useEffect(() => {
-    getMyBookings();
-  }, []);
+    if(user){
+      getMyBookings();
+    }
+  }, [user]);
 
   if (isLoading) {
     return <Loading />;
@@ -56,7 +57,7 @@ const MyBookings = () => {
             <div className="flex flex-col md:flex-row gap-4">
 
               <img
-                src={item.show.movie.poster_path}
+                src={image_base_url+item.show.movie.poster_path}
                 alt={item.show.movie.title}
                 className="w-44 rounded-lg object-cover"
               />

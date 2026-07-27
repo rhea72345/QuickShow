@@ -170,4 +170,4 @@ export const getShow = async (req, res) => {
       message: error.message,
     });
   }
-};
+}

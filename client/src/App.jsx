@@ -1,5 +1,6 @@
 import React from "react";
 import { Routes, Route, useLocation } from "react-router-dom";
+import { Toaster } from "react-hot-toast";
 
 import Navbar from "./components/Navbar";
 import Footer from "./components/Footer";
@@ -16,15 +17,22 @@ import Dashboard from "./pages/admin/Dashboard";
 import AddShows from "./pages/admin/AddShows";
 import ListShows from "./pages/admin/ListShows";
 import ListBookings from "./pages/admin/ListBookings";
+
 import { useAppContext } from "./context/AppContext";
 import { SignIn } from "@clerk/clerk-react";
 
 const App = () => {
   const isAdminRoute = useLocation().pathname.startsWith("/admin");
-
   const { user } = useAppContext();
+
   return (
     <>
+      {/* Toast Notifications */}
+      <Toaster
+        position="top-right"
+        reverseOrder={false}
+      />
+
       {!isAdminRoute && <Navbar />}
 
       <Routes>
@@ -37,11 +45,18 @@ const App = () => {
         <Route path="/my-bookings" element={<MyBookings />} />
 
         {/* Admin Routes */}
-        <Route path="/admin/*" element={user? <Layout /> : (
-          <div className="min-h-screen flex justify-center items-center">
-            <SignIn fallbackRedirectUrl={'/admin'}/>
-          </div>
-        )}>
+        <Route
+          path="/admin/*"
+          element={
+            user ? (
+              <Layout />
+            ) : (
+              <div className="min-h-screen flex justify-center items-center">
+                <SignIn fallbackRedirectUrl="/admin" />
+              </div>
+            )
+          }
+        >
           <Route index element={<Dashboard />} />
           <Route path="add-shows" element={<AddShows />} />
           <Route path="list-shows" element={<ListShows />} />
