@@ -2,31 +2,39 @@ import React, { useEffect, useState } from "react";
 import Loading from "../../components/Loading";
 import Title from "../../components/admin/Title";
 import dateFormat from "../../lib/dateFormat";
-import { dummyBookingData } from "../../assets/assets";
 import { useAppContext } from "../../context/AppContext";
 
 const ListBookings = () => {
   const currency = import.meta.env.VITE_CURRENCY;
 
-  const { axios, getToken, user } = useAppContext()
+  const { axios, getToken, user } = useAppContext();
 
   const [bookings, setBookings] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
 
   const getAllBookings = async () => {
     try {
-       const { data } = await axios.get("/api/admin/all-bookings",{
-        headers: {Authorization: `Bearer ${await getToken()}`}
-       });
-       setBookings(data.bookings)
+      const { data } = await axios.get("/api/admin/all-bookings", {
+        headers: {
+          Authorization: `Bearer ${await getToken()}`,
+        },
+      });
+
+      if (data.success) {
+        setBookings(data.bookings || []);
+      } else {
+        setBookings([]);
+      }
     } catch (error) {
       console.error(error);
-    } 
-    setIsLoading(false)
+      setBookings([]);
+    }
+
+    setIsLoading(false);
   };
 
   useEffect(() => {
-    if(user){
+    if (user) {
       getAllBookings();
     }
   }, [user]);
@@ -52,34 +60,44 @@ const ListBookings = () => {
           </thead>
 
           <tbody className="text-sm font-light">
-            {bookings.map((item, index) => (
-              <tr
-                key={index}
-                className="border-b border-primary/20 bg-primary/5 even:bg-primary/10"
-              >
-                <td className="p-2 pl-5 min-w-45">
-                  {item.user.name}
-                </td>
+            {bookings
+              .filter(
+                (item) =>
+                  item &&
+                  item.user &&
+                  item.show &&
+                  item.show.movie
+              )
+              .map((item, index) => (
+                <tr
+                  key={index}
+                  className="border-b border-primary/20 bg-primary/5 even:bg-primary/10"
+                >
+                  <td className="p-2 pl-5 min-w-45">
+                    {item.user?.name || "N/A"}
+                  </td>
 
-                <td className="p-2">
-                  {item.show.movie.title}
-                </td>
+                  <td className="p-2">
+                    {item.show?.movie?.title || "Movie Deleted"}
+                  </td>
 
-                <td className="p-2">
-                  {dateFormat(item.show.showDateTime)}
-                </td>
+                  <td className="p-2">
+                    {item.show?.showDateTime
+                      ? dateFormat(item.show.showDateTime)
+                      : "N/A"}
+                  </td>
 
-                <td className="p-2">
-                  {Object.keys(item.bookedSeats)
-                    .map((seat) => item.bookedSeats[seat])
-                    .join(", ")}
-                </td>
+                  <td className="p-2">
+                    {item.bookedSeats
+                      ? Object.values(item.bookedSeats).join(", ")
+                      : "N/A"}
+                  </td>
 
-                <td className="p-2">
-                  {currency} {item.amount}
-                </td>
-              </tr>
-            ))}
+                  <td className="p-2">
+                    {currency} {item.amount || 0}
+                  </td>
+                </tr>
+              ))}
           </tbody>
         </table>
       </div>
