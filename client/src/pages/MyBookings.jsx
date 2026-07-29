@@ -4,6 +4,7 @@ import Loading from "../components/Loading";
 import { dummyBookingData } from "../assets/assets";
 import dateFormat from "../lib/dateFormat";
 import { useAppContext } from "../context/AppContext";
+import { Link } from "lucide-react";
 
 const MyBookings = () => {
   const currency = import.meta.env.VITE_CURRENCY || "₹";
@@ -98,9 +99,9 @@ const MyBookings = () => {
               </p>
 
               {item.isPaid ? (
-                <button className="bg-green-600 text-white px-6 py-2 rounded-full mt-4">
+                <Link to={item.paymentLink}className="bg-green-600 text-white px-6 py-2 rounded-full mt-4">
                   Paid
-                </button>
+                </Link>
               ) : (
                 <button className="bg-primary text-white px-6 py-2 rounded-full mt-4 hover:opacity-90">
                   Pay Now
