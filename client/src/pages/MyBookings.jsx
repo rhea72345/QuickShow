@@ -1,37 +1,69 @@
 import React, { useEffect, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import BlurCircle from "../components/BlurCircle";
 import Loading from "../components/Loading";
 import dateFormat from "../lib/dateFormat";
 import { useAppContext } from "../context/AppContext";
-import { Link } from "lucide-react";
 
 const MyBookings = () => {
   const currency = import.meta.env.VITE_CURRENCY || "₹";
 
-  const {axios, getToken, user, image_base_url} = useAppContext()
-  
+  const { axios, getToken, user, image_base_url } = useAppContext();
+  const [searchParams, setSearchParams] = useSearchParams();
 
   const [bookings, setBookings] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  const getMyBookings = async() => {
+  const getMyBookings = async () => {
     try {
-      const { data } = await axios.get('/api/user/bookings', {headers: { Authorization: `Bearer ${await getToken()}`}})
-      if(data.success){
-        setBookings(data.bookings)
+      const { data } = await axios.get("/api/user/bookings", {
+        headers: {
+          Authorization: `Bearer ${await getToken()}`,
+        },
+      });
+
+      if (data.success) {
+        setBookings(data.bookings);
       }
     } catch (error) {
-      console.log(error)
+      console.log(error);
     }
-    setIsLoading(false)
+
+    setIsLoading(false);
   };
 
   useEffect(() => {
-    if (user) {
-      getMyBookings();
-    } else {
-      setIsLoading(false);
-    }
+    const loadBookings = async () => {
+      if (!user) {
+        setIsLoading(false);
+        return;
+      }
+
+      setIsLoading(true);
+
+      const sessionId = searchParams.get("session_id");
+      if (sessionId) {
+        try {
+          await axios.post(
+            "/api/booking/verify-payment",
+            { sessionId },
+            {
+              headers: {
+                Authorization: `Bearer ${await getToken()}`,
+              },
+            }
+          );
+        } catch (error) {
+          console.log(error);
+        }
+
+        setSearchParams({}, { replace: true });
+      }
+
+      await getMyBookings();
+    };
+
+    loadBookings();
   }, [user]);
 
   if (isLoading) {
@@ -40,13 +72,10 @@ const MyBookings = () => {
 
   return (
     <div className="relative px-6 md:px-16 lg:px-40 pt-30 md:pt-40 min-h-[80vh]">
-
       <BlurCircle top="100px" left="100px" />
       <BlurCircle bottom="0px" left="600px" />
 
-      <h1 className="text-3xl font-bold mb-8">
-        My Bookings
-      </h1>
+      <h1 className="text-3xl font-bold mb-8">My Bookings</h1>
 
       {bookings.length > 0 ? (
         bookings.map((item, index) => (
@@ -55,17 +84,14 @@ const MyBookings = () => {
             className="flex flex-col md:flex-row justify-between bg-primary/10 border border-primary/20 rounded-xl p-4 mb-6"
           >
             {/* Left */}
-
             <div className="flex flex-col md:flex-row gap-4">
-
               <img
-                src={image_base_url+item.show.movie.poster_path}
+                src={image_base_url + item.show.movie.poster_path}
                 alt={item.show.movie.title}
                 className="w-44 rounded-lg object-cover"
               />
 
               <div className="flex flex-col">
-
                 <h2 className="text-2xl font-semibold">
                   {item.show.movie.title}
                 </h2>
@@ -81,15 +107,11 @@ const MyBookings = () => {
                 <p className="text-gray-400">
                   Seats : {item.bookedSeats.join(", ")}
                 </p>
-
               </div>
-
             </div>
 
             {/* Right */}
-
             <div className="flex flex-col justify-between mt-6 md:mt-0 md:items-end">
-
               <h2 className="text-3xl font-bold text-primary">
                 {currency}
                 {item.amount}
@@ -100,9 +122,11 @@ const MyBookings = () => {
               </p>
 
               {item.isPaid ? (
-                <Link to={item.paymentLink}className="bg-green-600 text-white px-6 py-2 rounded-full mt-4">
+                <button
+                  className="bg-green-600 text-white px-6 py-2 rounded-full mt-4 cursor-default"
+                  disabled
+                >
                   Paid
-<<<<<<< HEAD
                 </button>
               ) : item.paymentLink ? (
                 <a
@@ -111,11 +135,6 @@ const MyBookings = () => {
                   rel="noreferrer"
                   className="bg-primary text-white px-6 py-2 rounded-full mt-4 hover:opacity-90"
                 >
-=======
-                </Link>
-              ) : (
-                <button className="bg-primary text-white px-6 py-2 rounded-full mt-4 hover:opacity-90">
->>>>>>> 4168dedc1f2f7abc22488d48b9d7270e07920410
                   Pay Now
                 </a>
               ) : (
@@ -123,9 +142,7 @@ const MyBookings = () => {
                   Payment link expired
                 </span>
               )}
-
             </div>
-
           </div>
         ))
       ) : (
@@ -133,7 +150,6 @@ const MyBookings = () => {
           No Bookings Found
         </div>
       )}
-
     </div>
   );
 };

@@ -87,16 +87,20 @@ const SeatLayout = () => {
     if (!selectedTime || !selectedSeats.length) return toast.error('Please select a time and seats');
 
     const { data } = await axios.post('/api/booking/create',
-      {showId: selectedTime.showId,selectedSeats,},{headers: {Authorization: `Bearer ${await getToken()}`,},}
+      { showId: selectedTime.showId, selectedSeats },
+      { headers: { Authorization: `Bearer ${await getToken()}` } }
     );
 
     if (data.success) {
-      window.location.href  = data.url;
-    }else {
-      toast.error(data.message)
+      window.location.href = data.url;
+    } else {
+      toast.error(data.message);
+      await getOccupiedSeats();
     }
   } catch (error) {
-    toast.error(error.message);
+    const message = error.response?.data?.message || error.message;
+    toast.error(message);
+    await getOccupiedSeats();
   }
 };
 
