@@ -39,6 +39,10 @@ export const createBooking = async (req, res) => {
     // Get the show details
     const showData = await Show.findById(showId).populate('movie');
 
+    if (!showData) {
+      return res.json({ success: false, message: "Show not found." });
+    }
+
     //Create a new booking
     const booking = await Booking.create({
         user: userId,
@@ -98,9 +102,13 @@ export const getOccupiedSeats = async (req, res) => {
   try {
 
     const { showId } = req.params;
-    const showData = await Show.findById(showId)
+    const showData = await Show.findById(showId);
 
-    const occupiedSeats = Object.keys(showData.occupiedSeats)
+    if (!showData) {
+      return res.json({ success: false, message: "Show not found." });
+    }
+
+    const occupiedSeats = Object.keys(showData.occupiedSeats);
 
     res.json({ success: true, occupiedSeats })
 

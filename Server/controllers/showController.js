@@ -114,12 +114,17 @@ export const getShows = async (req, res) => {
       .populate("movie")
       .sort({ showDateTime: 1 });
 
-    // filter unique shows
-    const uniqueShows = new Set(shows.map(show => show.movie));
+    const uniqueMovies = new Map();
+
+    shows.forEach((show) => {
+      if (show.movie?._id) {
+        uniqueMovies.set(show.movie._id, show.movie);
+      }
+    });
 
     res.json({
       success: true,
-      shows: Array.from(uniqueShows),
+      shows: Array.from(uniqueMovies.values()),
     });
   } catch (error) {
     console.error(error);

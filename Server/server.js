@@ -11,6 +11,7 @@ import bookingRouter from "./routes/bookingRoutes.js";
 import adminRouter from "./routes/adminRoutes.js";
 import userRouter from "./routes/userRoutes.js";
 import { stripeWebhooks } from "./controllers/stripeWebhooks.js";
+import { clerkWebhooks } from "./controllers/clerkWebhooks.js";
 
 // Change DNS
 dns.setServers(["1.1.1.1", "8.8.8.8"]);
@@ -21,8 +22,9 @@ const port = process.env.PORT || 3000;
 // Connect Database
 await connectDB();
 
-//Stripe Webhooks Route
+// Webhook routes (must use raw body before express.json())
 app.use('/api/stripe', express.raw({type: 'application/json'}), stripeWebhooks)
+app.use('/api/clerk', express.raw({type: 'application/json'}), clerkWebhooks)
 
 // Middleware
 app.use(express.json());
