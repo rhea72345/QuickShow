@@ -53,10 +53,8 @@ const syncUserDeletion = inngest.createFunction(
     triggers: [{ event: "clerk/user.deleted" }],
   },
   async ({ event, step }) => {
-    const { id } = event.data;
-
     await step.run("delete-user", async () => {
-      await User.findByIdAndDelete(id);
+      await User.findByIdAndDelete(event.data.id);
     });
   }
 );
@@ -70,16 +68,14 @@ const syncUserUpdation = inngest.createFunction(
     const userData = buildUserData(event.data);
 
     await step.run("update-user", async () => {
-      await User.findByIdAndUpdate(event.data.id, userData, {
+      await User.findByIdAndUpdate(userData._id, userData, {
         upsert: true,
         new: true,
         setDefaultsOnInsert: true,
       });
     });
   }
-)
-
-// Inngest function to cancel booking and release seats of show after 10 minutes of booking created if payment is not made
+);
 
 const releaseSeatsAndDeleteBooking = inngest.createFunction(
   {
@@ -87,36 +83,39 @@ const releaseSeatsAndDeleteBooking = inngest.createFunction(
     event: "app/checkpayment",
   },
   async ({ event, step }) => {
-const tenMinutesLater = new Date(Date.now() + 10 *60 * 1000);
-await step.sleepUntil('wait-for-10-minutes', tenMinutesLater);
+    const tenMinutesLater = new Date(Date.now() + 10 * 60 * 1000);
 
-await step.run('check-payment-status', async ()=>{
-  const bookingId = event.Date.bookingId;
-  const booking = await booking.findbyId(bookingId)
+    await step.sleepUntil("wait-for-10-minutes", tenMinutesLater);
 
-  //if payment is not made, release seats and delete booking
-  if(!booking.ispaid){
-    const show = await Show.findbyId(booking.show);
-    booking.bookedseats.forEach((seat)=>{
-   delete show.occupiedSeats[seat]   
-    
-  });
-  show.markModified('occupiedSeats')
-  await show.save()
-  await Booking.findByIdAndDelete(booking._id)
+    await step.run("check-payment-status", async () => {
+      const bookingId = event.data.bookingId;
+
+      const booking = await Booking.findById(bookingId);
+
+      if (!booking) return;
+
+      // Change these field names if your schema uses different names
+      if (!booking.isPaid) {
+        const show = await Show.findById(booking.show);
+
+        if (!show) return;
+
+        booking.bookedSeats.forEach((seat) => {
+          delete show.occupiedSeats[seat];
+        });
+
+        show.markModified("occupiedSeats");
+        await show.save();
+
+        await Booking.findByIdAndDelete(booking._id);
+      }
+    });
   }
-})
-  }
-)
+);
 
-
-<<<<<<< HEAD
-export const functions = [syncUserCreation, syncUserDeletion, syncUserUpdation];
-=======
 export const functions = [
   syncUserCreation,
   syncUserDeletion,
   syncUserUpdation,
-  releaseSeatsAndDeleteBooking
-]; 
->>>>>>> 4168dedc1f2f7abc22488d48b9d7270e07920410
+  releaseSeatsAndDeleteBooking,
+];
