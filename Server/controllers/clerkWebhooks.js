@@ -11,10 +11,8 @@ export const clerkWebhooks = async (req, res) => {
   const webhookSecret = process.env.CLERK_WEBHOOK_SECRET;
 
   if (!webhookSecret) {
-    return res.status(500).json({
-      success: false,
-      message: "CLERK_WEBHOOK_SECRET is not configured",
-    });
+    console.warn("CLERK_WEBHOOK_SECRET is not configured — skipping webhook sync");
+    return res.json({ received: true, skipped: true });
   }
 
   const wh = new Webhook(webhookSecret);

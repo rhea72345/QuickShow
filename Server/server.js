@@ -23,8 +23,8 @@ const port = process.env.PORT || 3000;
 await connectDB();
 
 // Webhook routes (must use raw body before express.json())
-app.use('/api/stripe', express.raw({type: 'application/json'}), stripeWebhooks)
-app.use('/api/clerk', express.raw({type: 'application/json'}), clerkWebhooks)
+app.post('/api/stripe', express.raw({ type: 'application/json' }), stripeWebhooks)
+app.post('/api/clerk', express.raw({ type: 'application/json' }), clerkWebhooks)
 
 // Middleware
 app.use(express.json());

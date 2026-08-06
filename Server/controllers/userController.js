@@ -1,13 +1,13 @@
-import { clerkClient } from "@clerk/express";
+import { clerkClient, getAuth } from "@clerk/express";
 import Booking from "../models/Booking.js";
 import Movie from "../models/Movie.js";
 
 // API Controller Function to Get User Bookings
 export const getUserBookings = async (req, res) => {
     try {
-        const user = req.auth().userId;
+        const { userId } = getAuth(req);
 
-        const bookings = await Booking.find({ user }).populate({
+        const bookings = await Booking.find({ user: userId }).populate({
             path: "show",
             populate: { path: "movie" }
         }).sort({ createdAt: -1 })
@@ -22,7 +22,7 @@ export const getUserBookings = async (req, res) => {
 export const updateFavorite = async (req, res) => {
     try {
         const { movieId } = req.body;
-        const userId = req.auth().userId;
+        const userId = getAuth(req).userId;
 
         const user = await clerkClient.users.getUser(userId)
 
@@ -48,7 +48,7 @@ export const updateFavorite = async (req, res) => {
 }
 export const getFavorites = async (req, res) => {
     try {
-        const user = await clerkClient.users.getUser(req.auth().userId)
+        const user = await clerkClient.users.getUser(getAuth(req).userId)
         const favorites = user.privateMetadata.favorites;
 
         // Getting movies from database

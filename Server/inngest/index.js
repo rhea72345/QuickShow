@@ -23,12 +23,15 @@ const buildUserData = ({
   return {
     _id: id,
     email:
-      primaryEmail?.email_address ?? email_addresses?.[0]?.email_address ?? "",
+      primaryEmail?.email_address ??
+      email_addresses?.[0]?.email_address ??
+      "",
     name: [first_name, last_name].filter(Boolean).join(" ") || "User",
     image: image_url ?? "",
   };
 };
 
+// Sync user creation
 const syncUserCreation = inngest.createFunction(
   {
     id: "sync-user-from-clerk",
@@ -47,6 +50,7 @@ const syncUserCreation = inngest.createFunction(
   }
 );
 
+// Sync user deletion
 const syncUserDeletion = inngest.createFunction(
   {
     id: "delete-user-with-clerk",
@@ -59,6 +63,7 @@ const syncUserDeletion = inngest.createFunction(
   }
 );
 
+// Sync user updation
 const syncUserUpdation = inngest.createFunction(
   {
     id: "update-user-from-clerk",
@@ -77,10 +82,11 @@ const syncUserUpdation = inngest.createFunction(
   }
 );
 
+// Release seats & delete booking if payment isn't completed in 10 minutes
 const releaseSeatsAndDeleteBooking = inngest.createFunction(
   {
     id: "release-seats-delete-booking",
-    event: "app/checkpayment",
+    triggers: [{ event: "app/checkpayment" }],
   },
   async ({ event, step }) => {
     const tenMinutesLater = new Date(Date.now() + 10 * 60 * 1000);
@@ -92,23 +98,20 @@ const releaseSeatsAndDeleteBooking = inngest.createFunction(
 
       const booking = await Booking.findById(bookingId);
 
-      if (!booking) return;
+      if (!booking || booking.isPaid) return;
 
-      // Change these field names if your schema uses different names
-      if (!booking.isPaid) {
-        const show = await Show.findById(booking.show);
+      const show = await Show.findById(booking.show);
 
-        if (!show) return;
+      if (!show) return;
 
-        booking.bookedSeats.forEach((seat) => {
-          delete show.occupiedSeats[seat];
-        });
+      booking.bookedSeats.forEach((seat) => {
+        delete show.occupiedSeats[seat];
+      });
 
-        show.markModified("occupiedSeats");
-        await show.save();
+      show.markModified("occupiedSeats");
+      await show.save();
 
-        await Booking.findByIdAndDelete(booking._id);
-      }
+      await Booking.findByIdAndDelete(booking._id);
     });
   }
 );
