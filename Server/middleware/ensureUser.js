@@ -27,12 +27,6 @@ export const ensureUserInDB = async (req, res, next) => {
       return next();
     }
 
-    const existingUser = await User.findById(userId);
-
-    if (existingUser) {
-      return next();
-    }
-
     const clerkUser = await clerkClient.users.getUser(userId);
     const userData = buildUserFromClerk(clerkUser);
 
