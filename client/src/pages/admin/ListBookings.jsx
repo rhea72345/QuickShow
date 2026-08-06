@@ -88,8 +88,8 @@ const ListBookings = () => {
                   </td>
 
                   <td className="p-2">
-                    {item.bookedSeats
-                      ? Object.values(item.bookedSeats).join(", ")
+                    {Array.isArray(item.bookedSeats)
+                      ? item.bookedSeats.join(", ")
                       : "N/A"}
                   </td>
 

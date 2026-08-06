@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from "react";
 import BlurCircle from "../components/BlurCircle";
 import Loading from "../components/Loading";
-import { dummyBookingData } from "../assets/assets";
 import dateFormat from "../lib/dateFormat";
 import { useAppContext } from "../context/AppContext";
 
@@ -27,8 +26,10 @@ const MyBookings = () => {
   };
 
   useEffect(() => {
-    if(user){
+    if (user) {
       getMyBookings();
+    } else {
+      setIsLoading(false);
     }
   }, [user]);
 
@@ -101,10 +102,19 @@ const MyBookings = () => {
                 <button className="bg-green-600 text-white px-6 py-2 rounded-full mt-4">
                   Paid
                 </button>
-              ) : (
-                <button className="bg-primary text-white px-6 py-2 rounded-full mt-4 hover:opacity-90">
+              ) : item.paymentLink ? (
+                <a
+                  href={item.paymentLink}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="bg-primary text-white px-6 py-2 rounded-full mt-4 hover:opacity-90"
+                >
                   Pay Now
-                </button>
+                </a>
+              ) : (
+                <span className="text-yellow-400 text-sm mt-4">
+                  Payment link expired
+                </span>
               )}
 
             </div>
