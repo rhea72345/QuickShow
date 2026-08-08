@@ -23,12 +23,15 @@ const buildUserData = ({
   return {
     _id: id,
     email:
-      primaryEmail?.email_address ?? email_addresses?.[0]?.email_address ?? "",
+      primaryEmail?.email_address ??
+      email_addresses?.[0]?.email_address ??
+      "",
     name: [first_name, last_name].filter(Boolean).join(" ") || "User",
     image: image_url ?? "",
   };
 };
 
+// Sync user creation
 const syncUserCreation = inngest.createFunction(
   {
     id: "sync-user-from-clerk",
@@ -47,20 +50,20 @@ const syncUserCreation = inngest.createFunction(
   }
 );
 
+// Sync user deletion
 const syncUserDeletion = inngest.createFunction(
   {
     id: "delete-user-with-clerk",
     triggers: [{ event: "clerk/user.deleted" }],
   },
   async ({ event, step }) => {
-    const { id } = event.data;
-
     await step.run("delete-user", async () => {
-      await User.findByIdAndDelete(id);
+      await User.findByIdAndDelete(event.data.id);
     });
   }
 );
 
+// Sync user updation
 const syncUserUpdation = inngest.createFunction(
   {
     id: "update-user-from-clerk",
@@ -70,17 +73,16 @@ const syncUserUpdation = inngest.createFunction(
     const userData = buildUserData(event.data);
 
     await step.run("update-user", async () => {
-      await User.findByIdAndUpdate(event.data.id, userData, {
+      await User.findByIdAndUpdate(userData._id, userData, {
         upsert: true,
         new: true,
         setDefaultsOnInsert: true,
       });
     });
   }
-)
+);
 
-// Inngest function to cancel booking and release seats of show after 10 minutes of booking created if payment is not made
-
+// Release seats & delete booking if payment isn't completed in 10 minutes
 const releaseSeatsAndDeleteBooking = inngest.createFunction(
   {
     id: "release-seats-delete-booking",
@@ -88,22 +90,27 @@ const releaseSeatsAndDeleteBooking = inngest.createFunction(
   },
   async ({ event, step }) => {
     const tenMinutesLater = new Date(Date.now() + 10 * 60 * 1000);
+
     await step.sleepUntil("wait-for-10-minutes", tenMinutesLater);
 
     await step.run("check-payment-status", async () => {
       const bookingId = event.data.bookingId;
+
       const booking = await Booking.findById(bookingId);
 
       if (!booking || booking.isPaid) return;
 
       const show = await Show.findById(booking.show);
+
       if (!show) return;
 
       booking.bookedSeats.forEach((seat) => {
         delete show.occupiedSeats[seat];
       });
+
       show.markModified("occupiedSeats");
       await show.save();
+
       await Booking.findByIdAndDelete(booking._id);
     });
   }

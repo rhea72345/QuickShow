@@ -137,6 +137,7 @@ export const createBooking = async (req, res) => {
     booking.paymentLink = session.url;
     await booking.save();
 
+    // Run Inngest scheduler to release seats if payment isn't completed in 10 minutes
     try {
       await inngest.send({
         name: "app/checkpayment",
