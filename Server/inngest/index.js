@@ -8,7 +8,10 @@ export const inngest = new Inngest({
   eventKey: process.env.INNGEST_EVENT_KEY,
 });
 
-// Helper function to prepare user data
+// ======================================================
+// Helper function
+// ======================================================
+
 const buildUserData = ({
   id,
   first_name,
@@ -23,46 +26,62 @@ const buildUserData = ({
 
   return {
     _id: id,
+
     email:
       primaryEmail?.email_address ??
       email_addresses?.[0]?.email_address ??
       "",
-    name: [first_name, last_name].filter(Boolean).join(" ") || "User",
+
+    name:
+      [first_name, last_name]
+        .filter(Boolean)
+        .join(" ") || "User",
+
     image: image_url ?? "",
   };
 };
 
 // ======================================================
-// 1. Sync user creation from Clerk
+// 1. CREATE USER
 // ======================================================
 
 const syncUserCreation = inngest.createFunction(
   {
     id: "sync-user-from-clerk",
-    triggers: [{ event: "clerk/user.created" }],
+    triggers: {
+      event: "clerk/user.created",
+    },
   },
+
   async ({ event, step }) => {
     const userData = buildUserData(event.data);
 
     await step.run("upsert-user", async () => {
-      await User.findByIdAndUpdate(userData._id, userData, {
-        upsert: true,
-        new: true,
-        setDefaultsOnInsert: true,
-      });
+      await User.findByIdAndUpdate(
+        userData._id,
+        userData,
+        {
+          upsert: true,
+          new: true,
+          setDefaultsOnInsert: true,
+        }
+      );
     });
   }
 );
 
 // ======================================================
-// 2. Sync user deletion from Clerk
+// 2. DELETE USER
 // ======================================================
 
 const syncUserDeletion = inngest.createFunction(
   {
     id: "delete-user-with-clerk",
-    triggers: [{ event: "clerk/user.deleted" }],
+    triggers: {
+      event: "clerk/user.deleted",
+    },
   },
+
   async ({ event, step }) => {
     await step.run("delete-user", async () => {
       await User.findByIdAndDelete(event.data.id);
@@ -71,86 +90,143 @@ const syncUserDeletion = inngest.createFunction(
 );
 
 // ======================================================
-// 3. Sync user updation from Clerk
+// 3. UPDATE USER
 // ======================================================
 
 const syncUserUpdation = inngest.createFunction(
   {
     id: "update-user-from-clerk",
-    triggers: [{ event: "clerk/user.updated" }],
+    triggers: {
+      event: "clerk/user.updated",
+    },
   },
+
   async ({ event, step }) => {
     const userData = buildUserData(event.data);
 
     await step.run("update-user", async () => {
-      await User.findByIdAndUpdate(userData._id, userData, {
-        upsert: true,
-        new: true,
-        setDefaultsOnInsert: true,
-      });
+      await User.findByIdAndUpdate(
+        userData._id,
+        userData,
+        {
+          upsert: true,
+          new: true,
+          setDefaultsOnInsert: true,
+        }
+      );
     });
   }
 );
 
 // ======================================================
-// 4. Release seats and delete unpaid booking
-//    after 10 minutes
+// 4. RELEASE SEATS + DELETE UNPAID BOOKING
 // ======================================================
 
-const releaseSeatsAndDeleteBooking = inngest.createFunction(
-  {
-    id: "release-seats-delete-booking",
-    triggers: [{ event: "app/checkpayment" }],
-  },
-  async ({ event, step }) => {
-    const tenMinutesLater = new Date(
-      Date.now() + 10 * 60 * 1000
-    );
+const releaseSeatsAndDeleteBooking =
+  inngest.createFunction(
+    {
+      id: "release-seats-delete-booking",
 
-    await step.sleepUntil(
-      "wait-for-10-minutes",
-      tenMinutesLater
-    );
+      triggers: {
+        event: "app/checkpayment",
+      },
+    },
 
-    await step.run("check-payment-status", async () => {
+    async ({ event, step }) => {
       const bookingId = event.data.bookingId;
 
-      const booking = await Booking.findById(bookingId);
+      // ================================================
+      // Wait 10 minutes
+      // ================================================
 
-      // Booking does not exist
-      if (!booking) {
-        return;
-      }
+      await step.sleep(
+        "wait-for-10-minutes",
+        "10m"
+      );
 
-      // Payment has already been completed
-      if (booking.isPaid) {
-        return;
-      }
+      // ================================================
+      // Check payment
+      // ================================================
 
-      const show = await Show.findById(booking.show);
+      await step.run(
+        "check-payment-status",
+        async () => {
+          const booking =
+            await Booking.findById(bookingId);
 
-      // Show does not exist
-      if (!show) {
-        return;
-      }
+          // Booking not found
+          if (!booking) {
+            console.log(
+              "Booking not found:",
+              bookingId
+            );
 
-      // Release booked seats
-      booking.bookedSeats.forEach((seat) => {
-        delete show.occupiedSeats[seat];
-      });
+            return;
+          }
 
-      show.markModified("occupiedSeats");
+          // Payment already completed
+          if (booking.isPaid) {
+            console.log(
+              "Payment already completed:",
+              bookingId
+            );
 
-      await show.save();
+            return;
+          }
 
-      // Delete unpaid booking
-      await Booking.findByIdAndDelete(booking._id);
-    });
-  }
-);
+          // ============================================
+          // Find show
+          // ============================================
+
+          const show = await Show.findById(
+            booking.show
+          );
+
+          if (!show) {
+            console.log(
+              "Show not found:",
+              booking.show
+            );
+
+            return;
+          }
+
+          // ============================================
+          // Release seats
+          // ============================================
+
+          booking.bookedSeats.forEach((seat) => {
+            delete show.occupiedSeats[seat];
+          });
+
+          show.markModified("occupiedSeats");
+
+          await show.save();
+
+          console.log(
+            "Seats released:",
+            booking.bookedSeats
+          );
+
+          // ============================================
+          // Delete unpaid booking
+          // ============================================
+
+          await Booking.findByIdAndDelete(
+            booking._id
+          );
+
+          console.log(
+            "Unpaid booking deleted:",
+            booking._id
+          );
+        }
+      );
+    }
+  );
 
 // ======================================================
-// Export all Inngest functions
+// EXPORT ALL FUNCTIONS
 // ======================================================
 
 export const functions = [
