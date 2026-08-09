@@ -8,6 +8,7 @@ export const inngest = new Inngest({
   eventKey: process.env.INNGEST_EVENT_KEY,
 });
 
+// Helper function to prepare user data
 const buildUserData = ({
   id,
   first_name,
@@ -31,7 +32,10 @@ const buildUserData = ({
   };
 };
 
-// Sync user creation
+// ======================================================
+// 1. Sync user creation from Clerk
+// ======================================================
+
 const syncUserCreation = inngest.createFunction(
   {
     id: "sync-user-from-clerk",
@@ -50,7 +54,10 @@ const syncUserCreation = inngest.createFunction(
   }
 );
 
-// Sync user deletion
+// ======================================================
+// 2. Sync user deletion from Clerk
+// ======================================================
+
 const syncUserDeletion = inngest.createFunction(
   {
     id: "delete-user-with-clerk",
@@ -63,7 +70,10 @@ const syncUserDeletion = inngest.createFunction(
   }
 );
 
-// Sync user updation
+// ======================================================
+// 3. Sync user updation from Clerk
+// ======================================================
+
 const syncUserUpdation = inngest.createFunction(
   {
     id: "update-user-from-clerk",
@@ -82,67 +92,66 @@ const syncUserUpdation = inngest.createFunction(
   }
 );
 
-// Release seats & delete booking if payment isn't completed in 10 minutes
+// ======================================================
+// 4. Release seats and delete unpaid booking
+//    after 10 minutes
+// ======================================================
+
 const releaseSeatsAndDeleteBooking = inngest.createFunction(
   {
     id: "release-seats-delete-booking",
     triggers: [{ event: "app/checkpayment" }],
   },
   async ({ event, step }) => {
-    const tenMinutesLater = new Date(Date.now() + 10 * 60 * 1000);
+    const tenMinutesLater = new Date(
+      Date.now() + 10 * 60 * 1000
+    );
 
-    await step.sleepUntil("wait-for-10-minutes", tenMinutesLater);
+    await step.sleepUntil(
+      "wait-for-10-minutes",
+      tenMinutesLater
+    );
 
     await step.run("check-payment-status", async () => {
       const bookingId = event.data.bookingId;
 
       const booking = await Booking.findById(bookingId);
 
-      if (!booking || booking.isPaid) return;
+      // Booking does not exist
+      if (!booking) {
+        return;
+      }
+
+      // Payment has already been completed
+      if (booking.isPaid) {
+        return;
+      }
 
       const show = await Show.findById(booking.show);
 
-      if (!show) return;
+      // Show does not exist
+      if (!show) {
+        return;
+      }
 
+      // Release booked seats
       booking.bookedSeats.forEach((seat) => {
         delete show.occupiedSeats[seat];
       });
 
       show.markModified("occupiedSeats");
+
       await show.save();
 
+      // Delete unpaid booking
       await Booking.findByIdAndDelete(booking._id);
     });
   }
 );
 
-//Inngest function to cancel booking and release seats of show after 10 minutes of booking created if payment is not made
-
-const releaseSeatsAndDeleteBooking = inngest.createFunction(
-  {id: 'release-seats-delete-booking'},
-  {event: "app/checkpayment"},
-  async ({event, step})=>{
-    const tenMinutesLater = new Date(Date.now() + 10 * 60 * 1000);
-    await step.sleepUntil('wait-for-10-minutes', tenMinutesLater);
-
-    await step.run('check-payment-status', async ()=>{
-      const bookingId = event.data.bookingId;
-      const booking = await Booking.findById(bookingId)
-
-      //if payment is not made, release seats and delete booking
-      if(!booking.isPaid){
-        const show = await Show.findById(booking.show);
-        booking.bookedSeats.forEach((seat)=>{
-         delete show.occupiedSeats[seat]
-        });
-        show.markModified('occupiedSeats')
-        await show.save()
-        await Booking.findByIdAndDelete(booking._id)
-      }
-    })
-
-  }
-)
+// ======================================================
+// Export all Inngest functions
+// ======================================================
 
 export const functions = [
   syncUserCreation,
