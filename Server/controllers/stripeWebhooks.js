@@ -51,7 +51,10 @@ export const stripeWebhooks = async (request, response) => {
 
         const { bookingId } = session.metadata || {};
 
+        // ======================================
         // Booking ID check
+        // ======================================
+
         if (!bookingId) {
           console.log(
             "Booking ID not found in metadata"
@@ -78,8 +81,26 @@ export const stripeWebhooks = async (request, response) => {
         );
 
         // ======================================
-        // Send event to Inngest
+        // 1. Send booking confirmation email
         // ======================================
+
+        await inngest.send({
+          name: "app/send-booking-confirmation-email",
+          data: {
+            bookingId: bookingId.toString(),
+          },
+        });
+
+        console.log(
+          `Booking confirmation email event sent for ${bookingId}`
+        );
+
+        // ======================================
+        // 2. Send check payment event
+        // ======================================
+        // NOTE:
+        // This event is handled by the
+        // release-seats-delete-booking function.
 
         await inngest.send({
           name: "app/checkpayment",
@@ -87,9 +108,17 @@ export const stripeWebhooks = async (request, response) => {
             bookingId: bookingId.toString(),
           },
         });
+        
+        // Send event to Inngest - Booking confirmation email
+await inngest.send({
+  name: "app/send-booking-confirmation-email",
+  data: {
+    bookingId: bookingId.toString(),
+  },
+});
 
         console.log(
-          `Inngest event sent for booking ${bookingId}`
+          `Check payment event sent for booking ${bookingId}`
         );
 
         break;
@@ -105,6 +134,10 @@ export const stripeWebhooks = async (request, response) => {
           event.type
         );
     }
+
+    // ==========================================
+    // Response
+    // ==========================================
 
     return response.json({
       received: true,
