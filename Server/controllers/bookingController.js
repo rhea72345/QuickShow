@@ -4,16 +4,30 @@ import Booking from "../models/Booking.js";
 import Show from "../models/Show.js";
 import stripe from "stripe";
 
+// ======================================================
+// Helper: Release Seats
+// ======================================================
+
 const releaseSeats = (showData, seats) => {
   seats.forEach((seat) => {
     delete showData.occupiedSeats[seat];
   });
+
   showData.markModified("occupiedSeats");
 };
 
+// ======================================================
+// Helper: Cleanup Stale Seats
+// ======================================================
+
 const cleanupStaleSeats = async (showData) => {
-  const occupiedEntries = Object.entries(showData.occupiedSeats || {});
-  if (!occupiedEntries.length) return false;
+  const occupiedEntries = Object.entries(
+    showData.occupiedSeats || {}
+  );
+
+  if (!occupiedEntries.length) {
+    return false;
+  }
 
   let modified = false;
 
@@ -22,7 +36,10 @@ const cleanupStaleSeats = async (showData) => {
       show: showData._id.toString(),
       bookedSeats: seat,
       isPaid: false,
-      paymentLink: { $exists: true, $ne: null },
+      paymentLink: {
+        $exists: true,
+        $ne: null,
+      },
     });
 
     if (!activeBooking) {
@@ -39,10 +56,20 @@ const cleanupStaleSeats = async (showData) => {
   return modified;
 };
 
-const checkSeatsAvailability = async (showId, selectedSeats) => {
+// ======================================================
+// Helper: Check Seat Availability
+// ======================================================
+
+const checkSeatsAvailability = async (
+  showId,
+  selectedSeats
+) => {
   try {
     const showData = await Show.findById(showId);
-    if (!showData) return false;
+
+    if (!showData) {
+      return false;
+    }
 
     await cleanupStaleSeats(showData);
 
@@ -52,10 +79,18 @@ const checkSeatsAvailability = async (showId, selectedSeats) => {
 
     return !isAnySeatTaken;
   } catch (error) {
-    console.log(error.message);
+    console.error(
+      "Seat availability error:",
+      error.message
+    );
+
     return false;
   }
 };
+
+// ======================================================
+// 1. CREATE BOOKING
+// ======================================================
 
 export const createBooking = async (req, res) => {
   let booking = null;
@@ -65,13 +100,28 @@ export const createBooking = async (req, res) => {
 
   try {
     const { userId } = getAuth(req);
+
     ({ showId, selectedSeats } = req.body);
+
     const origin =
-      req.headers.origin || process.env.CLIENT_URL || "http://localhost:5173";
+      req.headers.origin ||
+      process.env.CLIENT_URL ||
+      "http://localhost:5173";
+
+    // --------------------------------------------------
+    // Authentication
+    // --------------------------------------------------
 
     if (!userId) {
-      return res.json({ success: false, message: "Unauthorized." });
+      return res.json({
+        success: false,
+        message: "Unauthorized.",
+      });
     }
+
+    // --------------------------------------------------
+    // Validate Request
+    // --------------------------------------------------
 
     if (!showId || !selectedSeats?.length) {
       return res.json({
@@ -80,155 +130,443 @@ export const createBooking = async (req, res) => {
       });
     }
 
-    const isAvailable = await checkSeatsAvailability(showId, selectedSeats);
+    // --------------------------------------------------
+    // Check Seat Availability
+    // --------------------------------------------------
+
+    const isAvailable =
+      await checkSeatsAvailability(
+        showId,
+        selectedSeats
+      );
 
     if (!isAvailable) {
       return res.json({
         success: false,
-        message: "Selected Seats are not available.",
+        message:
+          "Selected Seats are not available.",
       });
     }
 
-    showData = await Show.findById(showId).populate("movie");
+    // --------------------------------------------------
+    // Find Show
+    // --------------------------------------------------
+
+    showData = await Show.findById(showId).populate(
+      "movie"
+    );
 
     if (!showData) {
-      return res.json({ success: false, message: "Show not found." });
+      return res.json({
+        success: false,
+        message: "Show not found.",
+      });
     }
+
+    // --------------------------------------------------
+    // Create Booking
+    // --------------------------------------------------
 
     booking = await Booking.create({
       user: userId,
       show: showId,
-      amount: showData.showPrice * selectedSeats.length,
+      amount:
+        showData.showPrice *
+        selectedSeats.length,
       bookedSeats: selectedSeats,
     });
+
+    console.log(
+      "✅ Booking created:",
+      booking._id.toString()
+    );
+
+    // --------------------------------------------------
+    // Occupy Seats
+    // --------------------------------------------------
 
     selectedSeats.forEach((seat) => {
       showData.occupiedSeats[seat] = userId;
     });
+
     showData.markModified("occupiedSeats");
+
     await showData.save();
 
-    const stripeInstance = new stripe(process.env.STRIPE_SECRET_KEY);
+    // --------------------------------------------------
+    // Stripe
+    // --------------------------------------------------
+
+    const stripeInstance = new stripe(
+      process.env.STRIPE_SECRET_KEY
+    );
 
     const line_items = [
       {
         price_data: {
           currency: "usd",
+
           product_data: {
             name: showData.movie.title,
           },
-          unit_amount: Math.floor(booking.amount) * 100,
+
+          unit_amount:
+            Math.floor(booking.amount) * 100,
         },
+
         quantity: 1,
       },
     ];
 
-    const session = await stripeInstance.checkout.sessions.create({
-      success_url: `${origin}/loading/my-bookings?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${origin}/my-bookings`,
-      line_items,
-      mode: "payment",
-      metadata: {
-        bookingId: booking._id.toString(),
-      },
-      expires_at: Math.floor(Date.now() / 1000) + 30 * 60,
-    });
+    // --------------------------------------------------
+    // Create Stripe Checkout Session
+    // --------------------------------------------------
+
+    const session =
+      await stripeInstance.checkout.sessions.create({
+        success_url:
+          `${origin}/loading/my-bookings` +
+          `?session_id={CHECKOUT_SESSION_ID}`,
+
+        cancel_url:
+          `${origin}/my-bookings`,
+
+        line_items,
+
+        mode: "payment",
+
+        metadata: {
+          bookingId:
+            booking._id.toString(),
+        },
+
+        expires_at:
+          Math.floor(Date.now() / 1000) +
+          30 * 60,
+      });
+
+    // --------------------------------------------------
+    // Save Payment Link
+    // --------------------------------------------------
 
     booking.paymentLink = session.url;
+
     await booking.save();
 
-    // Run Inngest scheduler to release seats if payment isn't completed in 10 minutes
+    console.log(
+      "✅ Stripe payment link saved"
+    );
+
+    // ==================================================
+    // INNGEST - RELEASE SEATS AFTER 10 MINUTES
+    // ==================================================
+
     try {
-      await inngest.send({
+      const result = await inngest.send({
         name: "app/checkpayment",
+
         data: {
-          bookingId: booking._id.toString(),
+          bookingId:
+            booking._id.toString(),
         },
       });
+
+      console.log(
+        "✅ INNGEST CHECKPAYMENT EVENT SENT:",
+        result
+      );
     } catch (inngestError) {
-      console.error("Inngest send failed:", inngestError.message);
+      console.error(
+        "❌ INNGEST CHECKPAYMENT EVENT FAILED:",
+        inngestError.message
+      );
     }
 
-    res.json({ success: true, url: session.url });
+    // --------------------------------------------------
+    // Response
+    // --------------------------------------------------
+
+    return res.json({
+      success: true,
+      url: session.url,
+    });
+
   } catch (error) {
-    console.log(error.message);
+    console.error(
+      "Create booking error:",
+      error.message
+    );
+
+    // --------------------------------------------------
+    // Delete Booking If Error
+    // --------------------------------------------------
 
     if (booking?._id) {
-      await Booking.findByIdAndDelete(booking._id).catch(() => {});
+      await Booking.findByIdAndDelete(
+        booking._id
+      ).catch(() => {});
     }
 
-    if (showData && selectedSeats.length) {
-      releaseSeats(showData, selectedSeats);
-      await showData.save().catch(() => {});
+    // --------------------------------------------------
+    // Release Seats If Error
+    // --------------------------------------------------
+
+    if (
+      showData &&
+      selectedSeats.length
+    ) {
+      releaseSeats(
+        showData,
+        selectedSeats
+      );
+
+      await showData
+        .save()
+        .catch(() => {});
     }
 
-    res.json({ success: false, message: error.message });
+    return res.json({
+      success: false,
+      message: error.message,
+    });
   }
 };
 
-export const verifyPayment = async (req, res) => {
+// ======================================================
+// 2. VERIFY PAYMENT
+// ======================================================
+
+export const verifyPayment = async (
+  req,
+  res
+) => {
   try {
     const { sessionId } = req.body;
+
     const { userId } = getAuth(req);
 
+    // --------------------------------------------------
+    // Authentication
+    // --------------------------------------------------
+
     if (!userId) {
-      return res.json({ success: false, message: "Unauthorized." });
+      return res.json({
+        success: false,
+        message: "Unauthorized.",
+      });
     }
+
+    // --------------------------------------------------
+    // Validate Session ID
+    // --------------------------------------------------
 
     if (!sessionId) {
-      return res.json({ success: false, message: "Session ID is required." });
+      return res.json({
+        success: false,
+        message:
+          "Session ID is required.",
+      });
     }
 
-    const stripeInstance = new stripe(process.env.STRIPE_SECRET_KEY);
-    const session = await stripeInstance.checkout.sessions.retrieve(sessionId);
+    // --------------------------------------------------
+    // Stripe Instance
+    // --------------------------------------------------
 
-    if (session.payment_status !== "paid") {
-      return res.json({ success: false, message: "Payment not completed." });
+    const stripeInstance = new stripe(
+      process.env.STRIPE_SECRET_KEY
+    );
+
+    // --------------------------------------------------
+    // Retrieve Stripe Session
+    // --------------------------------------------------
+
+    const session =
+      await stripeInstance.checkout.sessions.retrieve(
+        sessionId
+      );
+
+    // --------------------------------------------------
+    // Check Payment
+    // --------------------------------------------------
+
+    if (
+      session.payment_status !== "paid"
+    ) {
+      return res.json({
+        success: false,
+        message:
+          "Payment not completed.",
+      });
     }
 
-    const { bookingId } = session.metadata || {};
+    // --------------------------------------------------
+    // Get Booking ID
+    // --------------------------------------------------
+
+    const { bookingId } =
+      session.metadata || {};
 
     if (!bookingId) {
       return res.json({
         success: false,
-        message: "Booking ID not found in session.",
+        message:
+          "Booking ID not found in session.",
       });
     }
 
-    const booking = await Booking.findById(bookingId);
+    console.log(
+      "💳 Payment verified for booking:",
+      bookingId
+    );
 
-    if (!booking || booking.user !== userId) {
-      return res.json({ success: false, message: "Booking not found." });
+    // --------------------------------------------------
+    // Find Booking
+    // --------------------------------------------------
+
+    const booking =
+      await Booking.findById(bookingId);
+
+    if (
+      !booking ||
+      booking.user !== userId
+    ) {
+      return res.json({
+        success: false,
+        message:
+          "Booking not found.",
+      });
     }
 
-    await Booking.findByIdAndUpdate(bookingId, {
-      isPaid: true,
-      $unset: { paymentLink: "" },
+    // --------------------------------------------------
+    // Mark Booking Paid
+    // --------------------------------------------------
+
+    await Booking.findByIdAndUpdate(
+      bookingId,
+      {
+        isPaid: true,
+
+        $unset: {
+          paymentLink: "",
+        },
+      }
+    );
+
+    console.log(
+      "✅ Booking marked as paid:",
+      bookingId
+    );
+
+    // ==================================================
+    // INNGEST - SEND BOOKING CONFIRMATION EMAIL
+    // ==================================================
+
+    try {
+      const emailEvent =
+        await inngest.send({
+          name:
+            "app/send-booking-confirmation-email",
+
+          data: {
+            bookingId:
+              bookingId.toString(),
+          },
+        });
+
+      console.log(
+        "✅ BOOKING CONFIRMATION EMAIL EVENT SENT:",
+        emailEvent
+      );
+    } catch (inngestError) {
+      console.error(
+        "❌ BOOKING CONFIRMATION EMAIL EVENT FAILED:",
+        inngestError.message
+      );
+    }
+
+    // --------------------------------------------------
+    // Response
+    // --------------------------------------------------
+
+    return res.json({
+      success: true,
+      message:
+        "Payment verified successfully.",
     });
 
-    res.json({ success: true, message: "Payment verified successfully." });
   } catch (error) {
-    console.log(error.message);
-    res.json({ success: false, message: error.message });
+    console.error(
+      "Verify payment error:",
+      error.message
+    );
+
+    return res.json({
+      success: false,
+      message: error.message,
+    });
   }
 };
 
-export const getOccupiedSeats = async (req, res) => {
+// ======================================================
+// 3. GET OCCUPIED SEATS
+// ======================================================
+
+export const getOccupiedSeats = async (
+  req,
+  res
+) => {
   try {
     const { showId } = req.params;
-    const showData = await Show.findById(showId);
+
+    // --------------------------------------------------
+    // Find Show
+    // --------------------------------------------------
+
+    const showData =
+      await Show.findById(showId);
 
     if (!showData) {
-      return res.json({ success: false, message: "Show not found." });
+      return res.json({
+        success: false,
+        message: "Show not found.",
+      });
     }
 
-    await cleanupStaleSeats(showData);
+    // --------------------------------------------------
+    // Cleanup Stale Seats
+    // --------------------------------------------------
 
-    const occupiedSeats = Object.keys(showData.occupiedSeats);
+    await cleanupStaleSeats(
+      showData
+    );
 
-    res.json({ success: true, occupiedSeats });
+    // --------------------------------------------------
+    // Get Occupied Seats
+    // --------------------------------------------------
+
+    const occupiedSeats =
+      Object.keys(
+        showData.occupiedSeats
+      );
+
+    // --------------------------------------------------
+    // Response
+    // --------------------------------------------------
+
+    return res.json({
+      success: true,
+      occupiedSeats,
+    });
+
   } catch (error) {
-    console.log(error.message);
-    res.json({ success: false, message: error.message });
+    console.error(
+      "Get occupied seats error:",
+      error.message
+    );
+
+    return res.json({
+      success: false,
+      message: error.message,
+    });
   }
 };

@@ -5,11 +5,14 @@ import connectDB from "./configs/db.js";
 import dns from "dns";
 import { clerkMiddleware } from "@clerk/express";
 import { serve } from "inngest/express";
+
 import { inngest, functions } from "./inngest/index.js";
+
 import showRouter from "./routes/showRoutes.js";
 import bookingRouter from "./routes/bookingRoutes.js";
 import adminRouter from "./routes/adminRoutes.js";
 import userRouter from "./routes/userRoutes.js";
+
 import { stripeWebhooks } from "./controllers/stripeWebhooks.js";
 import { clerkWebhooks } from "./controllers/clerkWebhooks.js";
 
@@ -21,17 +24,32 @@ const port = process.env.PORT || 3000;
 
 // Connect Database
 await connectDB();
+// Webhook Routes
+// These must come before express.json()
 
-// Webhook routes (must use raw body before express.json())
-app.post('/api/stripe', express.raw({ type: 'application/json' }), stripeWebhooks)
-app.post('/api/clerk', express.raw({ type: 'application/json' }), clerkWebhooks)
+app.post(
+  "/api/stripe",
+  express.raw({ type: "application/json" }),
+  stripeWebhooks
+);
+
+app.post(
+  "/api/clerk",
+  express.raw({ type: "application/json" }),
+  clerkWebhooks
+);
 
 // Middleware
+
+
 app.use(express.json());
 app.use(cors());
 app.use(clerkMiddleware());
 
-// Routes
+
+// Basic Routes
+
+
 app.get("/", (req, res) => {
   res.send("Server is Live!");
 });
@@ -39,6 +57,10 @@ app.get("/", (req, res) => {
 app.get("/test", (req, res) => {
   res.json({ success: true });
 });
+
+
+// Inngest
+
 
 app.use(
   "/api/inngest",
@@ -48,13 +70,21 @@ app.use(
   })
 );
 
-// ✅ Correct
-app.use("/api/show", showRouter);
-app.use('/api/booking', bookingRouter)
-app.use('/api/admin',adminRouter)
-app.use('/api/user', userRouter)
+// Application Routes
 
-// Start server only in local development
+
+app.use("/api/show", showRouter);
+
+app.use("/api/booking", bookingRouter);
+
+app.use("/api/admin", adminRouter);
+
+app.use("/api/user", userRouter);
+
+
+// Start Server
+
+
 if (process.env.NODE_ENV !== "production") {
   app.listen(port, () => {
     console.log(`Server listening at http://localhost:${port}`);
