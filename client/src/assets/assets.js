@@ -16,8 +16,8 @@ export const assets = {
 
 export const dummyTrailers = [
     {
-        image: "https://img.youtube.com/vi/WpW36ldAqnM/maxresdefault.jpg",
-        videoUrl: 'https://www.youtube.com/watch?v=WpW36ldAqnM'
+        image: "https://www.slashfilm.com/img/gallery/spider-man-brand-new-day-trailer-tom-holland-peter-parker-change-organic-webbing/intro-1773860807.jpg",
+        videoUrl: 'https://www.youtube.com/watch?v=daXaTug8rL4'
     },
     {
         image: "https://img.youtube.com/vi/-sAOWhvheK8/maxresdefault.jpg",
